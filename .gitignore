@@ -73,4 +73,5 @@ gemma-*
 llama-*
 models/
 llamafile*
+llamafile-*
 *.model
