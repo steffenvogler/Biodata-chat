@@ -28,8 +28,9 @@ This application provides seamless access to three major scientific databases:
 - **Error Handling** - Graceful error recovery and user-friendly messages
 
 ### 🎯 Smart Features
+- **Flexible Model Selection** - Choose from various LLM models via command-line arguments
 - **Conversation History** - Maintains context across chat sessions
-- **Model Switching** - Change LLM models on-the-fly
+- **Runtime Model Switching** - Change LLM models on-the-fly during chat
 - **Dependency Checking** - Automatic validation of required components
 - **Server Management** - Integrated start/stop/restart functionality
 
@@ -110,7 +111,12 @@ The easiest way to get started is using the pre-configured development container
 
 3. **Using a specific model:**
    ```bash
-   ./biodata_chat.py --model llama3.2:3b
+   ./biodata_chat.py --model "Custom Model Name"
+   ```
+
+4. **Backend selection with model:**
+   ```bash
+   ./biodata_chat.py --backend ollama --model "LLaMA 3.2 1B Instruct" --verbose
    ```
 
 ## 📖 Usage Guide
@@ -120,10 +126,11 @@ The easiest way to get started is using the pre-configured development container
 When you run the application, it will:
 
 1. 🔍 Check all dependencies
-2. 📥 Download required LLM model (if needed)
-3. 🚀 Start MCP servers automatically
-4. 🔗 Initialize database connections
-5. 💬 Launch interactive chat mode
+2. 🎯 Configure the selected model for the chosen backend
+3. 📥 Download required LLM model (if needed)
+4. 🚀 Start MCP servers automatically
+5. 🔗 Initialize database connections
+6. 💬 Launch interactive chat mode
 
 ### Available Commands
 
@@ -133,7 +140,7 @@ When you run the application, it will:
 | `/status` | Display current MCP server status |
 | `/history` | Show recent conversation history |
 | `/clear` | Clear conversation history |
-| `/model <name>` | Switch to a different Ollama model |
+| `/model <name>` | Switch to a different model (runtime) |
 | `/verbose` | Toggle verbose logging on/off |
 | `/quit` | Exit the application safely |
 
@@ -180,15 +187,35 @@ The `manage_servers.sh` script provides:
 
 ### Model Selection
 
-The application defaults to `llama3.2:1b` for resource efficiency. You can specify other models:
+The application defaults to **"LLaMA 3.2 1B Instruct"** for optimal resource efficiency. The model name is intelligently mapped to the appropriate format for each backend:
+
+- **llamafile backend**: `Llama-3.2-1B-Instruct.Q6_K.llamafile`
+- **Ollama backend**: `llama3.2:1b`
+
+#### Command-Line Model Selection
 
 ```bash
-# Larger, more capable model
-./biodata_chat.py --model llama3.2:3b
+# Use default model (LLaMA 3.2 1B Instruct)
+./biodata_chat.py
 
-# Specialized models
-./biodata_chat.py --model codellama:7b
+# Specify custom model
+./biodata_chat.py --model "Custom Model Name"
+
+# Use with specific backend
+./biodata_chat.py --backend ollama --model "LLaMA 3.2 1B Instruct"
+
+# Larger models (adjust based on your system capabilities)
+./biodata_chat.py --model "LLaMA 3.2 3B Instruct"
+./biodata_chat.py --model "CodeLlama 7B"
 ```
+
+#### Available Options
+
+| Option | Short | Description | Default |
+|--------|--------|-------------|----------|
+| `--model` | `-m` | Model name to use | "LLaMA 3.2 1B Instruct" |
+| `--backend` | `-b` | Backend (llamafile/ollama) | llamafile |
+| `--verbose` | `-v` | Enable detailed logging | False |
 
 ### Verbose Mode
 
