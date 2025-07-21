@@ -53,7 +53,7 @@ class ServerStatus:
     last_ping: Optional[float] = None
 
 class BioDataChat:
-    def __init__(self, verbose: bool = False, backend: str = "llamafile"):
+    def __init__(self, verbose: bool = False, backend: str = "llamafile", model: Optional[str] = None):
         self.verbose = verbose
         self.console = console
         self.backend = backend
@@ -64,16 +64,41 @@ class BioDataChat:
         }
         self.server_pids: List[int] = []
         self.mcp_clients: Dict[str, Any] = {}
+
+        # Set default model
+        self.default_model = "LLaMA 3.2 1B Instruct"
+        self.conversation_history: List[Dict[str, str]] = []
+
+        # Setup LLM backend with the chosen model
+        self.setup_backend(backend, model)
         
-        # Configure model based on backend
-        if backend == "llamafile":
-            self.current_model = "gemma-2-2b-it-Q4_K_M.gguf"
+    def setup_backend(self, backend: str, model: Optional[str]):
+        """Set up the LLM backend and model"""
+        self.backend = backend
+        
+        # Use provided model, or default if none supplied
+        if not model:
+            model = self.default_model
+
+        # Configure based on backend
+        if self.backend == "llamafile":
+            # Map common model names to llamafile filenames
+            if "LLaMA 3.2 1B Instruct" in model or "llama" in model.lower():
+                self.current_model = "Llama-3.2-1B-Instruct.Q6_K.llamafile"
+            else:
+                # Generic transformation for other models
+                self.current_model = model.replace(" ", "-").replace(".", "-").lower() + ".llamafile"
             self.llamafile_path = "./llamafile-0.8.13"
         else:  # ollama fallback
-            self.current_model = "llama3.2:1b"
-            
-        self.conversation_history: List[Dict[str, str]] = []
-        
+            # Map to Ollama model names
+            if "LLaMA 3.2 1B Instruct" in model or "llama" in model.lower():
+                self.current_model = "llama3.2:1b"  # Standard Ollama format
+            else:
+                # Generic transformation for other models
+                self.current_model = model.lower().replace(" ", "")
+
+
+
     def log_verbose(self, message: str):
         """Log verbose messages if verbose mode is enabled"""
         if self.verbose:
@@ -595,7 +620,7 @@ Provide helpful, accurate responses about biological data. If you need specific 
 @click.command()
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 @click.option('--backend', '-b', default='llamafile', type=click.Choice(['llamafile', 'ollama']), help='LLM backend to use')
-@click.option('--model', '-m', help='Model to use (auto-detected based on backend if not specified)')
+@click.option('--model', '-m', default='LLaMA 3.2 1B Instruct', help='Model to use (auto-detected based on backend if not specified)')
 def main(verbose: bool, backend: str, model: Optional[str]):
     """
     BioData Chat - Intelligent interface for scientific databases
@@ -607,11 +632,7 @@ def main(verbose: bool, backend: str, model: Optional[str]):
     - ollama: Ollama server with various models
     """
     
-    app = BioDataChat(verbose=verbose, backend=backend)
-    
-    # Override model if specified
-    if model:
-        app.current_model = model
+    app = BioDataChat(verbose=verbose, backend=backend, model=model)
     
     try:
         asyncio.run(app.run())
