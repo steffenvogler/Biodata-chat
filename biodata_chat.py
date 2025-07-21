@@ -11,6 +11,8 @@ import subprocess
 import signal
 import json
 import time
+import platform
+import urllib.request
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,18 +31,28 @@ try:
     from rich.live import Live
     from rich.align import Align
     from rich import box
-    from fastmcp import Client
 except ImportError as e:
     print(f"Missing required dependency: {e}")
-    print("Please install: pip install click rich fastmcp")
+    print("Please install: pip install click rich")
     sys.exit(1)
 
-# Optional imports for fallback LLM backends
+# Optional imports for LLM backends and MCP
 try:
     import ollama
     HAS_OLLAMA = True
 except ImportError:
     HAS_OLLAMA = False
+
+# Add src directory to path for local fastmcp module
+src_path = Path(__file__).parent / "src"
+if src_path.exists() and str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+
+try:
+    from local_fastmcp import Client
+    HAS_FASTMCP = True
+except ImportError:
+    HAS_FASTMCP = False
 
 # Console setup
 console = Console()
@@ -53,10 +65,11 @@ class ServerStatus:
     last_ping: Optional[float] = None
 
 class BioDataChat:
-    def __init__(self, verbose: bool = False, backend: str = "llamafile", model: Optional[str] = None):
+    def __init__(self, verbose: bool = False, backend: str = "llamafile", model: Optional[str] = None, demo: bool = False):
         self.verbose = verbose
         self.console = console
         self.backend = backend
+        self.demo = demo
         self.servers = {
             "bionomia": ServerStatus("Bionomia (bananompy)"),
             "eol": ServerStatus("Encyclopedia of Life"),
@@ -84,11 +97,11 @@ class BioDataChat:
         if self.backend == "llamafile":
             # Map common model names to llamafile filenames
             if "LLaMA 3.2 1B Instruct" in model or "llama" in model.lower():
-                self.current_model = "Llama-3.2-1B-Instruct.Q6_K.llamafile"
+                self.current_model = "Llama-3.2-1B-Instruct.Q4_K_M.llamafile"
             else:
                 # Generic transformation for other models
                 self.current_model = model.replace(" ", "-").replace(".", "-").lower() + ".llamafile"
-            self.llamafile_path = "./llamafile-0.8.13"
+            self.llamafile_path = "./llamafile-0.9.3"
         else:  # ollama fallback
             # Map to Ollama model names
             if "LLaMA 3.2 1B Instruct" in model or "llama" in model.lower():
@@ -122,39 +135,52 @@ class BioDataChat:
         """Check if all required dependencies are available"""
         missing_deps = []
         
+        # In demo mode, show a warning but bypass critical checks
+        if self.demo:
+            self.console.print("\n[yellow]⚠️  Running in Demo Mode - some dependency checks bypassed[/yellow]")
+        
         # Check backend-specific dependencies
         if self.backend == "llamafile":
-            # Check if llamafile executable exists
-            if not Path(self.llamafile_path).exists():
-                missing_deps.append(f"Llamafile not found at {self.llamafile_path}")
-            
-            # Check if model file exists
-            if not Path(self.current_model).exists():
-                missing_deps.append(f"Model file not found: {self.current_model}")
+            # Skip checking for llamafile components as they can be auto-downloaded
+            self.log_verbose("Llamafile components will be auto-downloaded if missing")
                 
         elif self.backend == "ollama":
             # Check if Ollama is installed and running
             if not HAS_OLLAMA:
-                missing_deps.append("Ollama Python client not installed")
+                if not self.demo:
+                    missing_deps.append("Ollama Python client not installed")
             else:
                 try:
-                    result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+                    # Try with full path first, then fallback to PATH
+                    result = subprocess.run(['/opt/homebrew/bin/ollama', 'list'], capture_output=True, text=True)
                     if result.returncode != 0:
-                        missing_deps.append("Ollama not running (run 'ollama serve')")
+                        try:
+                            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+                            if result.returncode != 0:
+                                if not self.demo:
+                                    missing_deps.append("Ollama not running (run 'brew services start ollama')")
+                        except FileNotFoundError:
+                            if not self.demo:
+                                missing_deps.append("Ollama not running (run 'brew services start ollama')")
                 except FileNotFoundError:
-                    missing_deps.append("Ollama not installed")
+                    try:
+                        result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+                        if result.returncode != 0:
+                            if not self.demo:
+                                missing_deps.append("Ollama not running (run 'brew services start ollama')")
+                    except FileNotFoundError:
+                        if not self.demo:
+                            missing_deps.append("Ollama not installed")
         
-        # Check if fastmcp is available
-        try:
-            result = subprocess.run(['fastmcp', '--help'], capture_output=True, text=True)
-            if result.returncode != 0:
-                missing_deps.append("FastMCP not properly installed")
-        except FileNotFoundError:
-            missing_deps.append("FastMCP not installed")
+        # Check if fastmcp Python module is available (skip CLI check)
+        if not HAS_FASTMCP:
+            if not self.demo:
+                missing_deps.append("FastMCP Python module not available")
             
         # Check if management script exists
         if not Path("manage_servers.sh").exists():
-            missing_deps.append("manage_servers.sh script not found")
+            if not self.demo:
+                missing_deps.append("manage_servers.sh script not found")
             
         if missing_deps:
             self.console.print("\n[red]❌ Missing Dependencies:[/red]")
@@ -168,22 +194,167 @@ class BioDataChat:
     
     def setup_llm_backend(self):
         """Setup the LLM backend (llamafile or Ollama)"""
+        if self.demo:
+            self.console.print(f"[yellow]🎩 Demo mode: Simulating {self.backend} backend setup[/yellow]")
+            self.console.print(f"[green]✅ {self.backend.title()} backend ready (demo mode)[/green]")
+            return True
+            
         if self.backend == "llamafile":
             return self.setup_llamafile()
         elif self.backend == "ollama":
             return self.setup_ollama_model()
         return False
     
+    def get_llamafile_urls(self):
+        """Get download URLs for llamafile components (universal binary and model)"""
+        # Use latest version with universal binary
+        version = "0.9.3"
+        
+        # Llamafile executable URL (universal binary works on all platforms)
+        llamafile_url = f"https://github.com/Mozilla-Ocho/llamafile/releases/download/{version}/llamafile-{version}"
+        
+        # Model URLs based on current model
+        model_urls = {
+            "Llama-3.2-1B-Instruct.Q4_K_M.llamafile": "https://huggingface.co/Mozilla/Llama-3.2-1B-Instruct-llamafile/resolve/main/Llama-3.2-1B-Instruct.Q4_K_M.llamafile",
+            "Llama-3.2-1B-Instruct.Q6_K.llamafile": "https://huggingface.co/Mozilla/Llama-3.2-1B-Instruct-llamafile/resolve/main/Llama-3.2-1B-Instruct.Q6_K.llamafile",
+            "Llama-3.2-3B-Instruct.Q6_K.llamafile": "https://huggingface.co/Mozilla/Llama-3.2-3B-Instruct-llamafile/resolve/main/Llama-3.2-3B-Instruct.Q6_K.llamafile",
+        }
+        
+        model_url = model_urls.get(self.current_model, None)
+        
+        return llamafile_url, model_url
+    
+    def download_with_progress(self, url: str, filename: str, description: str) -> bool:
+        """Download a file with progress bar using curl for better compatibility"""
+        try:
+            self.console.print(f"[yellow]📥 {description}[/yellow]")
+            self.log_verbose(f"Downloading from: {url}")
+            
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=self.console
+            ) as progress:
+                task = progress.add_task(f"Downloading {filename}...", total=None)
+                
+                # Use curl for better compatibility with redirects and large files
+                curl_cmd = [
+                    'curl',
+                    '-L',  # Follow redirects
+                    '--progress-bar',  # Show progress bar in curl
+                    '--output', filename,
+                    url
+                ]
+                
+                self.log_verbose(f"Running: {' '.join(curl_cmd)}")
+                
+                process = subprocess.Popen(
+                    curl_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                
+                # Monitor the download
+                while process.poll() is None:
+                    progress.update(task, description=f"Downloading {filename}...")
+                    time.sleep(0.1)
+                
+                stdout, stderr = process.communicate()
+                
+                if process.returncode == 0:
+                    progress.update(task, description=f"✅ {description} completed")
+                    
+                    # Make executable if it's the llamafile binary
+                    if filename == self.llamafile_path:
+                        os.chmod(filename, 0o755)
+                        self.console.print(f"[green]✅ Made {filename} executable[/green]")
+                    
+                    return True
+                else:
+                    self.console.print(f"[red]❌ curl failed: {stderr}[/red]")
+                    return False
+            
+        except FileNotFoundError:
+            # Fallback to urllib if curl is not available
+            self.log_verbose("curl not found, falling back to urllib")
+            return self._download_with_urllib(url, filename, description)
+        except Exception as e:
+            self.console.print(f"[red]❌ Failed to download {filename}: {e}[/red]")
+            return False
+    
+    def _download_with_urllib(self, url: str, filename: str, description: str) -> bool:
+        """Fallback download using urllib"""
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=self.console
+            ) as progress:
+                task = progress.add_task(f"Downloading {filename}...", total=None)
+                
+                def progress_hook(block_num, block_size, total_size):
+                    if total_size > 0:
+                        downloaded = block_num * block_size
+                        percent = min(100, (downloaded / total_size) * 100)
+                        progress.update(task, description=f"Downloading {filename}... {percent:.1f}%")
+                
+                urllib.request.urlretrieve(url, filename, reporthook=progress_hook)
+                progress.update(task, description=f"✅ {description} completed")
+            
+            # Make executable if it's the llamafile binary
+            if filename == self.llamafile_path:
+                os.chmod(filename, 0o755)
+                self.console.print(f"[green]✅ Made {filename} executable[/green]")
+            
+            return True
+            
+        except Exception as e:
+            self.console.print(f"[red]❌ urllib download failed: {e}[/red]")
+            return False
+    
     def setup_llamafile(self):
-        """Check llamafile setup"""
+        """Setup llamafile backend with automatic download"""
         self.console.print(f"[cyan]Setting up Llamafile backend...[/cyan]")
         
-        # Check if files exist (already done in check_dependencies)
+        llamafile_url, model_url = self.get_llamafile_urls()
+        
+        # Check and download llamafile executable
+        if not Path(self.llamafile_path).exists():
+            self.console.print(f"[yellow]Llamafile executable not found. Downloading...[/yellow]")
+            if not self.download_with_progress(
+                llamafile_url, 
+                self.llamafile_path, 
+                f"Downloading llamafile executable"
+            ):
+                return False
+        else:
+            self.console.print(f"[green]✅ Llamafile executable found: {self.llamafile_path}[/green]")
+        
+        # Check and download model file
+        if not Path(self.current_model).exists():
+            if model_url:
+                self.console.print(f"[yellow]Model file not found. Downloading {self.current_model}...[/yellow]")
+                if not self.download_with_progress(
+                    model_url,
+                    self.current_model,
+                    f"Downloading model {self.current_model}"
+                ):
+                    return False
+            else:
+                self.console.print(f"[red]❌ No download URL available for model: {self.current_model}[/red]")
+                self.console.print(f"[yellow]💡 Please manually download the model file to: {self.current_model}[/yellow]")
+                return False
+        else:
+            self.console.print(f"[green]✅ Model file found: {self.current_model}[/green]")
+        
+        # Final verification
         if Path(self.llamafile_path).exists() and Path(self.current_model).exists():
             self.console.print(f"[green]✅ Llamafile backend ready[/green]")
             self.console.print(f"[cyan]  • Executable: {self.llamafile_path}[/cyan]")
             self.console.print(f"[cyan]  • Model: {self.current_model}[/cyan]")
             return True
+        
         return False
     
     def setup_ollama_model(self):
@@ -197,7 +368,7 @@ class BioDataChat:
         try:
             # List available models
             models = ollama.list()
-            model_names = [model['name'] for model in models['models']]
+            model_names = [model.model for model in models.models]
             
             if self.current_model not in model_names:
                 self.console.print(f"[yellow]Model {self.current_model} not found. Pulling...[/yellow]")
@@ -226,6 +397,12 @@ class BioDataChat:
     
     def start_servers(self):
         """Start all MCP servers using the management script"""
+        if self.demo:
+            self.console.print("\n[yellow]🎩 Demo mode: Simulating MCP server startup[/yellow]")
+            # Simulate server PIDs for demo
+            self.server_pids = [12345, 12346, 12347]
+            return True
+            
         self.console.print("\n[cyan]🚀 Starting MCP servers...[/cyan]")
         
         try:
@@ -411,13 +588,111 @@ class BioDataChat:
                 messages=messages,
                 stream=False
             )
-            return response['message']['content']
+            return response.message.content
         except Exception as e:
             return f"❌ Ollama error: {str(e)}"
+    
+    def generate_demo_response(self, user_message: str) -> str:
+        """Generate simulated response for demo mode"""
+        # Simple keyword-based responses for demonstration
+        message_lower = user_message.lower()
+        
+        # Species-related queries
+        if any(word in message_lower for word in ['species', 'organism', 'animal', 'plant', 'bird', 'fish', 'insect']):
+            return f"""I can help you explore species information! 🐛
+
+**For your query about '{user_message}':**
+
+• **Bionomia Database** - Contains species attribution data linking specimens to collectors
+• **Encyclopedia of Life (EOL)** - Comprehensive species pages with traits, ecology, and interactions
+• **CKAN NHM** - Natural History Museum datasets with specimen records
+
+*In a real implementation, I would query these databases to find specific information about the species you're interested in.*
+
+Try asking about specific species names, collectors, or ecological relationships!"""
+
+        # Collector-related queries
+        elif any(word in message_lower for word in ['collector', 'collection', 'museum', 'specimen']):
+            return f"""Great question about collectors and specimens! 🏛️
+
+**The Bionomia database** specializes in:
+• Linking biological specimens to their collectors
+• Attribution data for scientific specimens
+• Historical collection information
+
+**CKAN NHM provides:**
+• Natural History Museum collection data
+• Specimen metadata and cataloging
+• Research dataset access
+
+*In full mode, I would search these databases for specific collector information and specimen records.*
+
+Would you like to know about a specific collector or museum collection?"""
+
+        # Database or technical queries
+        elif any(word in message_lower for word in ['database', 'data', 'search', 'query', 'mcp']):
+            return f"""I work with three main scientific databases through MCP (Model Context Protocol) servers:
+
+🧬 **Database Overview:**
+• **Bionomia** - Species attribution & collector data
+• **EOL** - Encyclopedia of Life with comprehensive species info
+• **CKAN NHM** - Natural History Museum datasets
+
+💡 **Query Examples:**
+• "Find species collected by [name]"
+• "Show me data about polar bears"
+• "What interactions does [species] have?"
+
+*This demo shows the interface - the real version would execute live database queries through MCP servers!*"""
+
+        # Help or general queries
+        elif any(word in message_lower for word in ['help', 'what', 'how', 'can you']):
+            return f"""Welcome to BioData Chat! 🧬
+
+I'm designed to help you explore scientific databases containing:
+
+📊 **Available Data:**
+• Species information and taxonomy
+• Collector attribution and specimen data  
+• Ecological interactions and traits
+• Museum collection records
+
+🔍 **What you can ask:**
+• Species-specific questions
+• Collector and specimen information
+• Database queries and searches
+
+💡 **Demo Mode Note:** This is a demonstration - responses are simulated. The full version connects to live scientific databases!
+
+Try asking about a specific species or collector!"""
+
+        # Default response
+        else:
+            return f"""Thanks for your question about '{user_message}'! 🤔
+
+I'm a scientific database assistant that can help with:
+• **Species information** from Encyclopedia of Life
+• **Collector data** from Bionomia
+• **Museum specimens** from CKAN NHM
+
+*Note: This is demo mode with simulated responses.*
+
+Try asking about:
+• A specific species (e.g., "Tell me about polar bears")
+• Collector information (e.g., "Find specimens collected by Darwin")
+• Database searches (e.g., "Search for butterfly data")
+
+Type `/help` for more commands!"""
+    
     
     async def generate_response(self, user_message: str) -> str:
         """Generate response using configured LLM backend"""
         self.log_verbose(f"Generating response for: {user_message} (using {self.backend})")
+        
+        # In demo mode, generate a simulated response
+        if self.demo:
+            await asyncio.sleep(1)  # Simulate processing time
+            return self.generate_demo_response(user_message)
         
         # Get database context
         db_context = await self.query_databases(user_message)
@@ -621,7 +896,8 @@ Provide helpful, accurate responses about biological data. If you need specific 
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 @click.option('--backend', '-b', default='llamafile', type=click.Choice(['llamafile', 'ollama']), help='LLM backend to use')
 @click.option('--model', '-m', default='LLaMA 3.2 1B Instruct', help='Model to use (auto-detected based on backend if not specified)')
-def main(verbose: bool, backend: str, model: Optional[str]):
+@click.option('--demo', is_flag=True, help='Run in demo mode (bypasses some dependency checks for testing)')
+def main(verbose: bool, backend: str, model: Optional[str], demo: bool):
     """
     BioData Chat - Intelligent interface for scientific databases
     
@@ -632,7 +908,7 @@ def main(verbose: bool, backend: str, model: Optional[str]):
     - ollama: Ollama server with various models
     """
     
-    app = BioDataChat(verbose=verbose, backend=backend, model=model)
+    app = BioDataChat(verbose=verbose, backend=backend, model=model, demo=demo)
     
     try:
         asyncio.run(app.run())

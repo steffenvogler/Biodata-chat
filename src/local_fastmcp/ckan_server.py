@@ -1,4 +1,4 @@
-from fastmcp import FastMCP
+from local_fastmcp import FastMCP
 import requests
 from typing import Optional
 

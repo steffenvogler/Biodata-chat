@@ -1,5 +1,7 @@
 # 🧬 BioData Chat
 
+![BioData Chat Screenshot](Screenshot.png)
+
 **Intelligent Terminal Interface for Scientific Database Interaction**
 
 BioData Chat is a sophisticated terminal application that enables natural language interaction with multiple scientific databases through MCP (Model Context Protocol) servers, powered by local LLM models for privacy and efficiency.
@@ -38,16 +40,19 @@ This application provides seamless access to three major scientific databases:
 
 ### Prerequisites
 
-1. **LLM Backend** - The application supports two backends:
+1. **Python 3.9+** - Required for all dependencies
+2. **LLM Backend** - The application supports two backends:
    - **llamafile** (Primary) - Automatically downloaded lightweight LLM executable
-   - **Ollama** (Fallback) - Install from [ollama.ai](https://ollama.ai) if llamafile fails
+   - **Ollama** (Secondary) - Install from [ollama.ai](https://ollama.ai) for alternative backend
      ```bash
-     # Only needed if llamafile doesn't work
+     # Install Ollama (macOS)
+     brew install ollama
      ollama serve
      ```
 
-2. **FastMCP** - Should be available in your environment
-3. **Python 3.8+** with pip
+3. **System Dependencies**:
+   - `curl` - For downloading llamafile components
+   - `chmod` - For setting script permissions
 
 ### Installation
 
@@ -75,23 +80,22 @@ The easiest way to get started is using the pre-configured development container
 
 #### Option 2: Local Installation
 
-1. **Clone and navigate to the project directory:**
+1. **Clone the repository:**
    ```bash
-   cd /path/to/Biodata-chat
+   git clone https://github.com/steffenvogler/Biodata-chat.git
+   cd Biodata-chat
    ```
 
-2. **Install initial minimal dependencies:**
-   ```bash
-   pip install -r requirements-minimal.txt
-   ```
-
-3. **Install full dependencies if needed:**
+2. **Install Python dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
-   For machines with dependency issues, try only minimal requirements first.
+   This installs all required dependencies including:
+   - `click`, `rich`, `requests` (core dependencies)
+   - `ollama` (LLM backend)
+   - `bananompy` (enhanced Bionomia integration)
 
-4. **Make scripts executable:**
+3. **Make scripts executable:**
    ```bash
    chmod +x biodata_chat.py
    chmod +x manage_servers.sh
@@ -232,22 +236,24 @@ Or toggle during runtime with `/verbose` command.
 ### File Structure
 
 ```
-fastmcp/
+Biodata-chat/
 ├── biodata_chat.py              # Main application
 ├── manage_servers.sh            # Server orchestration script
 ├── requirements.txt             # Python dependencies
-├── src/fastmcp/
-│   ├── bananompy_server.py     # Bionomia MCP server
-│   ├── eol_server.py           # EOL MCP server
-│   └── ckan_server.py          # CKAN MCP server
-└── BIODATA_CHAT_README.md      # This documentation
+├── Screenshot.png               # Application screenshot
+├── README.md                    # This documentation
+└── src/local_fastmcp/           # Local MCP implementation
+    ├── __init__.py             # FastMCP and Client classes
+    ├── bananompy_server.py     # Bionomia MCP server
+    ├── eol_server.py           # EOL MCP server
+    └── ckan_server.py          # CKAN MCP server
 ```
 
 ### Adding New Databases
 
 To integrate additional scientific databases:
 
-1. Create a new MCP server script in `src/fastmcp/`
+1. Create a new MCP server script in `src/local_fastmcp/`
 2. Add server management to `manage_servers.sh`
 3. Update the client initialization in `biodata_chat.py`
 4. Extend the system prompt with database context

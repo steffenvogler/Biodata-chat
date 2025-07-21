@@ -1,17 +1,26 @@
 # BioData Chat Requirements
-# Core dependencies for CLI interface
+# Complete dependency list for the BioData Chat application
+
+# Core CLI and UI dependencies
 click>=8.0.0
 rich>=13.0.0
 requests>=2.28.0
 
-# LLM and MCP dependencies
-ollama
-fastmcp
+# LLM backends
+ollama>=0.5.0
 
-# Scientific database libraries
-# Note: Install bananompy if available, fallback to requests for API calls
-bananompy; python_version>="3.8"
+# Scientific libraries
+bananompy  # Enhanced Bionomia API integration
 
-# Type hints and async support
-typing-extensions>=4.0.0; python_version<"3.11"
-aiohttp>=3.8.0
+# Note: fastmcp is replaced by local_fastmcp module in src/
+# The official fastmcp package requires Python 3.10+, but we use a local implementation
+
+# Development and testing dependencies (optional)
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0
+
+# System requirements:
+# - Python 3.9+ (tested with 3.9)
+# - curl (for llamafile downloads)
+# - Ollama installed locally (for ollama backend)
+# - manage_servers.sh script (included in project)
