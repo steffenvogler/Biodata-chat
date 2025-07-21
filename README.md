@@ -22,7 +22,7 @@ This application provides seamless access to three major scientific databases:
 
 ### 🔧 Technical Capabilities
 - **MCP Server Integration** - Orchestrates multiple database servers automatically
-- **Local LLM Processing** - Uses Ollama for privacy-focused AI responses
+- **Dual LLM Backend Support** - Primary llamafile backend with Ollama fallback for maximum compatibility
 - **Resource Efficiency** - Optimized for local execution with lightweight models
 - **Verbose Logging** - Detailed debugging information when needed
 - **Error Handling** - Graceful error recovery and user-friendly messages
@@ -37,11 +37,13 @@ This application provides seamless access to three major scientific databases:
 
 ### Prerequisites
 
-1. **Ollama** - Install from [ollama.ai](https://ollama.ai)
-   ```bash
-   # Start Ollama service
-   ollama serve
-   ```
+1. **LLM Backend** - The application supports two backends:
+   - **llamafile** (Primary) - Automatically downloaded lightweight LLM executable
+   - **Ollama** (Fallback) - Install from [ollama.ai](https://ollama.ai) if llamafile fails
+     ```bash
+     # Only needed if llamafile doesn't work
+     ollama serve
+     ```
 
 2. **FastMCP** - Should be available in your environment
 3. **Python 3.8+** with pip
