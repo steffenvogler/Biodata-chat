@@ -48,6 +48,30 @@ This application provides seamless access to three major scientific databases:
 
 ### Installation
 
+#### Option 1: Development Container (Recommended)
+
+The easiest way to get started is using the pre-configured development container:
+
+1. **Prerequisites:**
+   - [Docker](https://www.docker.com/get-started) installed
+   - [VS Code](https://code.visualstudio.com/) with [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+
+2. **Open in container:**
+   ```bash
+   git clone https://github.com/steffenvogler/Biodata-chat.git
+   cd Biodata-chat
+   code .
+   ```
+   Then click "Reopen in Container" when prompted.
+
+3. **Everything is pre-configured:**
+   - ✅ Python 3.11 with all dependencies
+   - ✅ Ollama pre-installed and configured
+   - ✅ Development tools ready
+   - ✅ VS Code extensions loaded
+
+#### Option 2: Local Installation
+
 1. **Clone and navigate to the project directory:**
    ```bash
    cd /path/to/Biodata-chat
