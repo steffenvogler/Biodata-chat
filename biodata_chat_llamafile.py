@@ -29,18 +29,12 @@ try:
     from rich.live import Live
     from rich.align import Align
     from rich import box
+    import ollama
     from fastmcp import Client
 except ImportError as e:
     print(f"Missing required dependency: {e}")
-    print("Please install: pip install click rich fastmcp")
+    print("Please install: pip install click rich ollama fastmcp")
     sys.exit(1)
-
-# Optional imports for fallback LLM backends
-try:
-    import ollama
-    HAS_OLLAMA = True
-except ImportError:
-    HAS_OLLAMA = False
 
 # Console setup
 console = Console()
@@ -53,10 +47,9 @@ class ServerStatus:
     last_ping: Optional[float] = None
 
 class BioDataChat:
-    def __init__(self, verbose: bool = False, backend: str = "llamafile"):
+    def __init__(self, verbose: bool = False):
         self.verbose = verbose
         self.console = console
-        self.backend = backend
         self.servers = {
             "bionomia": ServerStatus("Bionomia (bananompy)"),
             "eol": ServerStatus("Encyclopedia of Life"),
@@ -64,14 +57,7 @@ class BioDataChat:
         }
         self.server_pids: List[int] = []
         self.mcp_clients: Dict[str, Any] = {}
-        
-        # Configure model based on backend
-        if backend == "llamafile":
-            self.current_model = "gemma-2-2b-it-Q4_K_M.gguf"
-            self.llamafile_path = "./llamafile-0.8.13"
-        else:  # ollama fallback
-            self.current_model = "llama3.2:1b"
-            
+        self.current_model = "llama3.2:1b"  # Resource-efficient model
         self.conversation_history: List[Dict[str, str]] = []
         
     def log_verbose(self, message: str):
@@ -97,27 +83,13 @@ class BioDataChat:
         """Check if all required dependencies are available"""
         missing_deps = []
         
-        # Check backend-specific dependencies
-        if self.backend == "llamafile":
-            # Check if llamafile executable exists
-            if not Path(self.llamafile_path).exists():
-                missing_deps.append(f"Llamafile not found at {self.llamafile_path}")
-            
-            # Check if model file exists
-            if not Path(self.current_model).exists():
-                missing_deps.append(f"Model file not found: {self.current_model}")
-                
-        elif self.backend == "ollama":
-            # Check if Ollama is installed and running
-            if not HAS_OLLAMA:
-                missing_deps.append("Ollama Python client not installed")
-            else:
-                try:
-                    result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
-                    if result.returncode != 0:
-                        missing_deps.append("Ollama not running (run 'ollama serve')")
-                except FileNotFoundError:
-                    missing_deps.append("Ollama not installed")
+        # Check if Ollama is installed and running
+        try:
+            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+            if result.returncode != 0:
+                missing_deps.append("Ollama not running (run 'ollama serve')")
+        except FileNotFoundError:
+            missing_deps.append("Ollama not installed")
         
         # Check if fastmcp is available
         try:
@@ -135,39 +107,13 @@ class BioDataChat:
             self.console.print("\n[red]❌ Missing Dependencies:[/red]")
             for dep in missing_deps:
                 self.console.print(f"  • {dep}")
-            if self.backend == "llamafile" and missing_deps:
-                self.console.print("\n[yellow]💡 Tip: Try switching to Ollama backend with --backend ollama[/yellow]")
             self.console.print("\n[yellow]Please resolve these issues and try again.[/yellow]")
             return False
         return True
     
-    def setup_llm_backend(self):
-        """Setup the LLM backend (llamafile or Ollama)"""
-        if self.backend == "llamafile":
-            return self.setup_llamafile()
-        elif self.backend == "ollama":
-            return self.setup_ollama_model()
-        return False
-    
-    def setup_llamafile(self):
-        """Check llamafile setup"""
-        self.console.print(f"[cyan]Setting up Llamafile backend...[/cyan]")
-        
-        # Check if files exist (already done in check_dependencies)
-        if Path(self.llamafile_path).exists() and Path(self.current_model).exists():
-            self.console.print(f"[green]✅ Llamafile backend ready[/green]")
-            self.console.print(f"[cyan]  • Executable: {self.llamafile_path}[/cyan]")
-            self.console.print(f"[cyan]  • Model: {self.current_model}[/cyan]")
-            return True
-        return False
-    
     def setup_ollama_model(self):
         """Ensure the required Ollama model is available"""
-        if not HAS_OLLAMA:
-            self.console.print(f"[red]❌ Ollama Python client not available[/red]")
-            return False
-            
-        self.console.print(f"[cyan]Checking for Ollama model: {self.current_model}[/cyan]")
+        self.console.print(f"[cyan]Checking for model: {self.current_model}[/cyan]")
         
         try:
             # List available models
@@ -335,71 +281,19 @@ class BioDataChat:
         
         return database_context
     
-    def generate_llamafile_response(self, prompt: str, max_tokens: int = 150) -> str:
-        """Generate response using llamafile backend"""
-        try:
-            process = subprocess.run([
-                self.llamafile_path,
-                "-m", self.current_model,
-                "-p", prompt,
-                "-n", str(max_tokens),
-                "--temp", "0.7",
-                "--no-display-prompt"
-            ], capture_output=True, text=True, timeout=60)
-            
-            if process.returncode == 0:
-                # Clean up the output - remove model loading messages and extra whitespace
-                output = process.stdout.strip()
-                lines = output.split('\n')
-                
-                # Find the actual response (skip loading messages)
-                response_lines = []
-                capturing = False
-                
-                for line in lines:
-                    # Skip system messages
-                    if any(skip in line.lower() for skip in ['load time', 'sample time', 'prompt eval', 'eval time', 'total time', 'log start', 'log end', 'main:', 'llama_']):
-                        continue
-                    if line.strip() and not line.startswith('note:'):
-                        capturing = True
-                    if capturing and line.strip():
-                        response_lines.append(line.strip())
-                
-                response = '\n'.join(response_lines).strip()
-                return response if response else "I'm thinking about your question..."
-            else:
-                return f"❌ Llamafile error: {process.stderr}"
-                
-        except subprocess.TimeoutExpired:
-            return "❌ Response timed out"
-        except Exception as e:
-            return f"❌ Error with llamafile: {str(e)}"
-    
-    def generate_ollama_response(self, messages: List[Dict[str, str]]) -> str:
-        """Generate response using Ollama backend"""
-        if not HAS_OLLAMA:
-            return "❌ Ollama not available"
-            
-        try:
-            response = ollama.chat(
-                model=self.current_model,
-                messages=messages,
-                stream=False
-            )
-            return response['message']['content']
-        except Exception as e:
-            return f"❌ Ollama error: {str(e)}"
-    
     async def generate_response(self, user_message: str) -> str:
-        """Generate response using configured LLM backend"""
-        self.log_verbose(f"Generating response for: {user_message} (using {self.backend})")
+        """Generate response using Ollama LLM"""
+        self.log_verbose(f"Generating response for: {user_message}")
         
         # Get database context
         db_context = await self.query_databases(user_message)
         
-        # Prepare full prompt
-        system_prompt = f"""You are BioData Assistant, an AI that helps users explore scientific databases.
-
+        # Prepare conversation context
+        messages = []
+        
+        # System message
+        system_msg = f"""You are BioData Assistant, an AI that helps users explore scientific databases.
+        
 You have access to three main databases through MCP servers:
 1. Bionomia - Species attribution and collector information
 2. Encyclopedia of Life (EOL) - Comprehensive species data, traits, interactions  
@@ -410,6 +304,15 @@ Context from databases:
 
 Provide helpful, accurate responses about biological data. If you need specific data, explain how the user could query the databases directly."""
         
+        messages.append({"role": "system", "content": system_msg})
+        
+        # Add conversation history
+        for msg in self.conversation_history[-5:]:  # Last 5 messages for context
+            messages.append(msg)
+            
+        # Add current message
+        messages.append({"role": "user", "content": user_message})
+        
         try:
             with Progress(
                 SpinnerColumn(),
@@ -419,41 +322,19 @@ Provide helpful, accurate responses about biological data. If you need specific 
             ) as progress:
                 task = progress.add_task("🧠 Thinking...", total=None)
                 
-                if self.backend == "llamafile":
-                    # For llamafile, create a single prompt with conversation history
-                    full_prompt = system_prompt + "\n\n"
-                    
-                    # Add recent conversation history
-                    for msg in self.conversation_history[-4:]:  # Last 4 messages for context
-                        role = "Human" if msg["role"] == "user" else "Assistant"
-                        full_prompt += f"{role}: {msg['content']}\n"
-                    
-                    full_prompt += f"Human: {user_message}\nAssistant:"
-                    
-                    assistant_response = self.generate_llamafile_response(full_prompt)
-                    
-                elif self.backend == "ollama":
-                    # For Ollama, use message format
-                    messages = [{"role": "system", "content": system_prompt}]
-                    
-                    # Add conversation history
-                    for msg in self.conversation_history[-5:]:  # Last 5 messages for context
-                        messages.append(msg)
-                        
-                    # Add current message
-                    messages.append({"role": "user", "content": user_message})
-                    
-                    assistant_response = self.generate_ollama_response(messages)
-                    
-                else:
-                    assistant_response = f"❌ Unknown backend: {self.backend}"
+                response = ollama.chat(
+                    model=self.current_model,
+                    messages=messages,
+                    stream=False
+                )
                 
                 progress.update(task, description="✅ Response ready")
                 
+            assistant_response = response['message']['content']
+            
             # Update conversation history
-            if not assistant_response.startswith("❌"):
-                self.conversation_history.append({"role": "user", "content": user_message})
-                self.conversation_history.append({"role": "assistant", "content": assistant_response})
+            self.conversation_history.append({"role": "user", "content": user_message})
+            self.conversation_history.append({"role": "assistant", "content": assistant_response})
             
             return assistant_response
             
@@ -560,16 +441,12 @@ Provide helpful, accurate responses about biological data. If you need specific 
         try:
             self.show_banner()
             
-            # Display current backend
-            backend_icon = "🗂️" if self.backend == "llamafile" else "🔄"
-            self.console.print(f"\n[cyan]{backend_icon} Using {self.backend.title()} backend[/cyan]")
-            
             # Check dependencies
             if not self.check_dependencies():
                 return
             
-            # Setup LLM backend
-            if not self.setup_llm_backend():
+            # Setup Ollama model
+            if not self.setup_ollama_model():
                 return
             
             # Start servers
@@ -594,24 +471,16 @@ Provide helpful, accurate responses about biological data. If you need specific 
 
 @click.command()
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
-@click.option('--backend', '-b', default='llamafile', type=click.Choice(['llamafile', 'ollama']), help='LLM backend to use')
-@click.option('--model', '-m', help='Model to use (auto-detected based on backend if not specified)')
-def main(verbose: bool, backend: str, model: Optional[str]):
+@click.option('--model', '-m', default='llama3.2:1b', help='Ollama model to use')
+def main(verbose: bool, model: str):
     """
     BioData Chat - Intelligent interface for scientific databases
     
     Chat with biological databases through MCP servers using local LLM models.
-    
-    Supports two backends:
-    - llamafile (default): Self-contained model files with Gemma 2 2B
-    - ollama: Ollama server with various models
     """
     
-    app = BioDataChat(verbose=verbose, backend=backend)
-    
-    # Override model if specified
-    if model:
-        app.current_model = model
+    app = BioDataChat(verbose=verbose)
+    app.current_model = model
     
     try:
         asyncio.run(app.run())
