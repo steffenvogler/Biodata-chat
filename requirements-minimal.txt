@@ -1,0 +1,16 @@
+# Minimal BioData Chat Requirements
+# Install these first, then try the full requirements.txt
+
+# Essential CLI dependencies
+click>=8.0.0
+rich>=13.0.0
+requests>=2.28.0
+
+# LLM interface (install separately if needed)
+# ollama
+
+# MCP framework (install separately if needed)  
+# fastmcp
+
+# Optional scientific libraries (install manually if desired)
+# bananompy

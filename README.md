@@ -50,15 +50,21 @@ This application provides seamless access to three major scientific databases:
 
 1. **Clone and navigate to the project directory:**
    ```bash
-   cd /path/to/fastmcp
+   cd /path/to/Biodata-chat
    ```
 
-2. **Install dependencies:**
+2. **Install initial minimal dependencies:**
+   ```bash
+   pip install -r requirements-minimal.txt
+   ```
+
+3. **Install full dependencies if needed:**
    ```bash
    pip install -r requirements.txt
    ```
+   For machines with dependency issues, try only minimal requirements first.
 
-3. **Make scripts executable:**
+4. **Make scripts executable:**
    ```bash
    chmod +x biodata_chat.py
    chmod +x manage_servers.sh
