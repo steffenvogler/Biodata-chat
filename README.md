@@ -40,7 +40,7 @@ This application provides seamless access to three major scientific databases:
 
 ### Prerequisites
 
-1. **Python 3.9+** - Required for all dependencies
+1. **Python 3.11+** - Required for all dependencies
 2. **LLM Backend** - The application supports two backends:
    - **llamafile** (Primary) - Automatically downloaded lightweight LLM executable
    - **Ollama** (Secondary) - Install from [ollama.ai](https://ollama.ai) for alternative backend
@@ -56,7 +56,7 @@ This application provides seamless access to three major scientific databases:
 
 ### Installation
 
-#### Option 1: Development Container (Recommended)
+#### Option 1: Development Container (instable; WIP)
 
 The easiest way to get started is using the pre-configured development container:
 
@@ -249,7 +249,7 @@ Biodata-chat/
     └── ckan_server.py          # CKAN MCP server
 ```
 
-### Adding New Databases
+### BYOD - Bring you own Databases
 
 To integrate additional scientific databases:
 
@@ -290,22 +290,13 @@ pip install -r requirements.txt --force-reinstall
 
 The application provides detailed error messages with suggested solutions. Use `--verbose` flag for additional diagnostic information.
 
-## 🤝 Contributing
-
-Contributions are welcome! Areas for improvement:
-
-- 🔌 Additional database integrations
-- 🎨 Enhanced UI components
-- 🧠 Better query understanding
-- 📊 Data visualization features
-- 🔍 Advanced search capabilities
-
 ## 📄 License
 
 This project extends FastMCP and follows its licensing terms. Please refer to the FastMCP license for details.
 
 ## 🙏 Acknowledgments
 
+- **Warp** - Provides the Agentic Development Environment
 - **FastMCP** - Provides the MCP server framework
 - **Ollama** - Local LLM execution platform
 - **Rich** - Beautiful terminal interfaces
