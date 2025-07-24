@@ -31,6 +31,12 @@ try:
     from rich.live import Live
     from rich.align import Align
     from rich import box
+    # Try to import readline for better input handling
+    try:
+        import readline
+        HAS_READLINE = True
+    except ImportError:
+        HAS_READLINE = False
 except ImportError as e:
     print(f"Missing required dependency: {e}")
     print("Please install: pip install click rich")
@@ -887,14 +893,38 @@ Provide helpful, accurate responses about biological data. If you need specific 
             
             self.console.print(f"[dim]{i}.[/dim] [bold]{role}:[/bold] {content}")
     
+    def get_user_input(self) -> str:
+        """Get user input with enhanced cursor support"""
+        # Configure readline for better input handling if available
+        if HAS_READLINE:
+            # Enable tab completion and history
+            readline.parse_and_bind("tab: complete")
+            readline.set_startup_hook(None)
+        
+        # Print prompt
+        self.console.print("\n[bold blue]You[/bold blue]: ", end="")
+        
+        try:
+            # Use input() for better cursor support and arrow key navigation
+            user_input = input().strip()
+            return user_input
+        except (EOFError, KeyboardInterrupt):
+            raise
+    
     async def run_chat_loop(self):
         """Main chat interaction loop"""
         self.console.print("\n[bold green]💬 Chat started! Type '/help' for commands or '/quit' to exit.[/bold green]")
         
+        # Show readline support status
+        if HAS_READLINE:
+            self.console.print("[dim]✅ Enhanced input with cursor support and arrow key navigation enabled[/dim]")
+        else:
+            self.console.print("[dim]⚠️  Basic input mode (install readline for enhanced cursor support)[/dim]")
+        
         while True:
             try:
-                # Get user input
-                user_input = Prompt.ask("\n[bold blue]You[/bold blue]", console=self.console).strip()
+                # Get user input with enhanced support
+                user_input = self.get_user_input()
                 
                 if not user_input:
                     continue
