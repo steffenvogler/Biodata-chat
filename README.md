@@ -237,11 +237,15 @@ The system automatically analyzes questions for:
 #### ReAct Features
 
 - **📊 Domain Intelligence**: Automatically recognizes research domains and selects appropriate databases
-- **🗓️ Multi-Step Planning**: Breaks complex questions into manageable research steps
+- **🗺️ Multi-Step Planning**: Breaks complex questions into manageable research steps
 - **🔗 Cross-Database Integration**: Synthesizes information from multiple scientific databases
 - **🔍 Evidence Assessment**: Evaluates confidence levels and information quality
 - **📝 Research Traceability**: Provides detailed reasoning traces in verbose mode
 - **⚙️ Adaptive Strategy**: Adjusts research approach based on intermediate findings
+- **🧠 LLM-Powered Synthesis**: Uses actual LLM backends for deep reasoning and synthesis
+- **🔄 Context Accumulation**: Builds knowledge iteratively across reasoning steps
+- **🔍 Relationship Analysis**: Identifies complex ecological, taxonomic, and geographic relationships
+- **❓ Follow-up Generation**: Automatically generates relevant research questions based on findings
 
 #### Best Use Cases for ReAct
 

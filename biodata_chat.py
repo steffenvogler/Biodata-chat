@@ -518,8 +518,9 @@ class BioDataChat:
             try:
                 self.react_agent = ReActAgent(
                     database_clients=self.mcp_clients,
-                    llm_backend=self.backend,
-                    verbose=self.verbose
+                    llm_backend=self,  # Pass the BioDataChat instance for LLM access
+                    verbose=self.verbose,
+                    force_high_complexity=True  # Always use high complexity reasoning when enabled
                 )
                 self.console.print("[green]✅ Advanced reasoning capabilities enabled[/green]")
             except Exception as e:
