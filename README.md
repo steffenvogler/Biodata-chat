@@ -35,6 +35,9 @@ This application provides seamless access to three major scientific databases:
 - **Runtime Model Switching** - Change LLM models on-the-fly during chat
 - **Dependency Checking** - Automatic validation of required components
 - **Server Management** - Integrated start/stop/restart functionality
+- **🧠 Advanced ReAct Reasoning** - Multi-step reasoning for complex research questions
+- **🔬 Systematic Research** - Automated database querying with evidence synthesis
+- **📊 Research Trace Visualization** - View the AI's reasoning steps and decision process
 
 ## 🚀 Quick Start
 
@@ -146,7 +149,107 @@ When you run the application, it will:
 | `/clear` | Clear conversation history |
 | `/model <name>` | Switch to a different model (runtime) |
 | `/verbose` | Toggle verbose logging on/off |
+| `/reasoning` | Toggle advanced ReAct reasoning mode |
 | `/quit` | Exit the application safely |
+
+### 🧠 Advanced Reasoning + Acting (ReAct) Paradigm
+
+BioData Chat implements a sophisticated **ReAct (Reasoning + Acting)** paradigm for handling complex research questions that require multi-step analysis and systematic database exploration.
+
+#### What is ReAct?
+
+ReAct is an advanced AI reasoning framework that combines:
+- **💭 Thought**: Strategic planning and reasoning about the research question
+- **⚙️ Action**: Systematic execution of database queries and analysis
+- **🔍 Observation**: Critical evaluation of gathered evidence
+- **🧘 Reflection**: Assessment of progress and strategy adjustment
+- **🔬 Synthesis**: Integration of findings into comprehensive answers
+
+#### When ReAct Activates
+
+The system automatically analyzes questions for:
+- **Complexity Level**: High, medium, or low complexity detection
+- **Domain Classification**: Taxonomy, ecology, collections, morphology, etc.
+- **Multi-Database Requirements**: Questions requiring cross-database research
+- **Research Depth**: Questions needing systematic investigation
+
+#### ReAct Research Process
+
+1. **📊 Question Analysis**
+   - Domain classification (taxonomy, ecology, collections, etc.)
+   - Complexity assessment (low/medium/high)
+   - Database requirement identification
+   - Sub-question decomposition
+
+2. **🗺️ Research Strategy Planning**
+   - Multi-step research plan development
+   - Database query prioritization
+   - Evidence synthesis strategy
+
+3. **🔄 Iterative Research Loop**
+   - **Thought**: Plan next research action
+   - **Action**: Execute database queries or analysis
+   - **Observation**: Evaluate results and evidence quality
+   - **Reflection**: Assess progress and adjust strategy
+
+4. **📝 Evidence Synthesis**
+   - Cross-database information integration
+   - Confidence assessment of findings
+   - Comprehensive answer compilation
+
+#### Example ReAct Flow
+
+```
+💬 User: "Compare the ecological roles of polar bears and penguins in their respective ecosystems"
+
+💭 Thought: This is a high complexity comparative analysis requiring ecological data 
+         from multiple sources about Arctic and Antarctic ecosystems.
+
+⚙️ Action: Query EOL database for polar bear ecological interactions and habitat data
+
+🔍 Observation: Found comprehensive data on polar bear predatory relationships, 
+             sea ice dependency, and Arctic food web position.
+
+💭 Thought: Need similar data for penguins to enable meaningful comparison.
+
+⚙️ Action: Query EOL database for penguin species ecological roles and Antarctic data
+
+🔍 Observation: Gathered data on penguin feeding behaviors, breeding patterns, 
+             and Antarctic ecosystem relationships.
+
+🧘 Reflection: Have sufficient data from both Arctic and Antarctic ecosystems. 
+            Ready to synthesize comparative analysis.
+
+🔬 Synthesis: [Comprehensive comparison with ecosystem roles, conservation 
+            status, climate change impacts, and evolutionary adaptations]
+```
+
+#### Enabling ReAct Mode
+
+```bash
+# Enable during chat session
+/reasoning
+
+# Check status
+/help  # Shows ReAct availability and current status
+```
+
+#### ReAct Features
+
+- **📊 Domain Intelligence**: Automatically recognizes research domains and selects appropriate databases
+- **🗓️ Multi-Step Planning**: Breaks complex questions into manageable research steps
+- **🔗 Cross-Database Integration**: Synthesizes information from multiple scientific databases
+- **🔍 Evidence Assessment**: Evaluates confidence levels and information quality
+- **📝 Research Traceability**: Provides detailed reasoning traces in verbose mode
+- **⚙️ Adaptive Strategy**: Adjusts research approach based on intermediate findings
+
+#### Best Use Cases for ReAct
+
+- 🔬 **Comparative Studies**: "Compare ecological niches of similar species"
+- 🌍 **Cross-Domain Research**: "Relationship between climate and species distribution"
+- 📈 **Temporal Analysis**: "How have collection patterns changed over time?"
+- 🗺️ **Geographic Studies**: "Species diversity across different bioregions"
+- 🔗 **Complex Relationships**: "Interaction networks in specific ecosystems"
 
 ### Example Queries
 
@@ -242,11 +345,15 @@ Biodata-chat/
 ├── requirements.txt             # Python dependencies
 ├── Screenshot.png               # Application screenshot
 ├── README.md                    # This documentation
-└── src/local_fastmcp/           # Local MCP implementation
-    ├── __init__.py             # FastMCP and Client classes
-    ├── bananompy_server.py     # Bionomia MCP server
-    ├── eol_server.py           # EOL MCP server
-    └── ckan_server.py          # CKAN MCP server
+├── src/
+│   ├── local_fastmcp/           # Local MCP implementation
+│   │   ├── __init__.py         # FastMCP and Client classes
+│   │   ├── bananompy_server.py # Bionomia MCP server
+│   │   ├── eol_server.py       # EOL MCP server
+│   │   └── ckan_server.py      # CKAN MCP server
+│   └── reasoning/               # Advanced reasoning module
+│       ├── __init__.py         # Reasoning module exports
+│       └── react_agent.py      # ReAct reasoning agent
 ```
 
 ### BYOD - Bring you own Databases

@@ -43,7 +43,7 @@ try:
 except ImportError:
     HAS_OLLAMA = False
 
-# Add src directory to path for local fastmcp module
+# Add src directory to path for local fastmcp and reasoning modules
 src_path = Path(__file__).parent / "src"
 if src_path.exists() and str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
@@ -53,6 +53,13 @@ try:
     HAS_FASTMCP = True
 except ImportError:
     HAS_FASTMCP = False
+
+# Import ReAct reasoning agent
+try:
+    from reasoning import ReActAgent
+    HAS_REASONING = True
+except ImportError:
+    HAS_REASONING = False
 
 # Console setup
 console = Console()
@@ -81,6 +88,10 @@ class BioDataChat:
         # Set default model
         self.default_model = "LLaMA 3.2 1B Instruct"
         self.conversation_history: List[Dict[str, str]] = []
+        
+        # Initialize ReAct reasoning agent
+        self.react_agent: Optional[Any] = None
+        self.reasoning_enabled = False
 
         # Setup LLM backend with the chosen model
         self.setup_backend(backend, model)
@@ -494,6 +505,23 @@ class BioDataChat:
         # For now, we'll use a simple approach assuming servers are running on stdio
         # In a real implementation, you'd need proper client initialization
         self.console.print("[green]✅ MCP clients initialized[/green]")
+        
+        # Initialize ReAct reasoning agent if available
+        if HAS_REASONING:
+            self.console.print("[cyan]🧠 Initializing ReAct reasoning agent...[/cyan]")
+            try:
+                self.react_agent = ReActAgent(
+                    database_clients=self.mcp_clients,
+                    llm_backend=self.backend,
+                    verbose=self.verbose
+                )
+                self.console.print("[green]✅ Advanced reasoning capabilities enabled[/green]")
+            except Exception as e:
+                self.console.print(f"[yellow]⚠️  ReAct agent initialization failed: {e}[/yellow]")
+                self.react_agent = None
+        else:
+            self.console.print("[yellow]⚠️  Advanced reasoning module not available[/yellow]")
+        
         return True
     
     def format_response(self, response: str) -> None:
@@ -685,9 +713,62 @@ Try asking about:
 Type `/help` for more commands!"""
     
     
+    async def generate_react_response(self, user_message: str) -> str:
+        """Generate response using ReAct reasoning agent"""
+        if not self.react_agent:
+            return "❌ Advanced reasoning not available. ReAct agent not initialized."
+        
+        self.log_verbose(f"Using ReAct agent for complex reasoning: {user_message}")
+        
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=self.console,
+                transient=True
+            ) as progress:
+                task = progress.add_task("🧠 Advanced reasoning in progress...", total=None)
+                
+                # Use the ReAct agent to research the question
+                result = await self.react_agent.research_question(user_message)
+                
+                progress.update(task, description="✅ Research completed")
+                
+                # Format the response with reasoning trace
+                if "error" in result:
+                    return f"❌ Research failed: {result['error']}"
+                
+                response_parts = []
+                response_parts.append(f"**🔬 Advanced Research Analysis:**")
+                response_parts.append(f"\n**Question:** {result['question']}")
+                response_parts.append(f"\n**Domain:** {result['domain'].title()} (Complexity: {result['complexity']})")
+                response_parts.append(f"\n**Databases Consulted:** {', '.join(result['databases_used'])}")
+                response_parts.append(f"\n**Reasoning Steps:** {result['reasoning_steps']}")
+                response_parts.append(f"\n**Evidence Gathered:** {result['evidence_count']} pieces")
+                
+                response_parts.append(f"\n\n**🎯 Research Findings:**")
+                response_parts.append(f"\n{result['answer']}")
+                
+                if self.verbose and "research_trace" in result:
+                    response_parts.append(f"\n\n**🧠 Reasoning Trace:**")
+                    for step in result['research_trace'][:5]:  # Show first 5 steps
+                        response_parts.append(f"\n• **{step['type'].title()}** (Step {step['step']}): {step['content']}")
+                    if len(result['research_trace']) > 5:
+                        response_parts.append(f"\n• ... and {len(result['research_trace']) - 5} more reasoning steps")
+                
+                return " ".join(response_parts)
+                
+        except Exception as e:
+            self.log_verbose(f"ReAct reasoning error: {e}")
+            return f"❌ Advanced reasoning failed: {str(e)}"
+    
     async def generate_response(self, user_message: str) -> str:
         """Generate response using configured LLM backend"""
         self.log_verbose(f"Generating response for: {user_message} (using {self.backend})")
+        
+        # Check if advanced reasoning is enabled and available
+        if self.reasoning_enabled and self.react_agent:
+            return await self.generate_react_response(user_message)
         
         # In demo mode, generate a simulated response
         if self.demo:
@@ -763,7 +844,10 @@ Provide helpful, accurate responses about biological data. If you need specific 
     
     def show_help(self):
         """Display help information"""
-        help_text = """
+        reasoning_status = "ON" if self.reasoning_enabled else "OFF"
+        reasoning_available = "✅" if self.react_agent else "❌"
+        
+        help_text = f"""
 [bold cyan]🔧 Available Commands:[/bold cyan]
 
 • [green]/help[/green] - Show this help message
@@ -772,6 +856,7 @@ Provide helpful, accurate responses about biological data. If you need specific 
 • [green]/clear[/green] - Clear conversation history
 • [green]/model <name>[/green] - Switch LLM model
 • [green]/verbose[/green] - Toggle verbose mode
+• [green]/reasoning[/green] - Toggle advanced ReAct reasoning ({reasoning_available} Available, {reasoning_status})
 • [green]/quit[/green] - Exit the application
 
 [bold cyan]💡 Tips:[/bold cyan]
@@ -834,6 +919,16 @@ Provide helpful, accurate responses about biological data. If you need specific 
                         new_model = command[1]
                         self.console.print(f"[cyan]Switching to model: {new_model}[/cyan]")
                         self.current_model = new_model
+                    elif command[0] == 'reasoning':
+                        if self.react_agent:
+                            self.reasoning_enabled = not self.reasoning_enabled
+                            status = "ON" if self.reasoning_enabled else "OFF"
+                            icon = "🧠" if self.reasoning_enabled else "🔧"
+                            self.console.print(f"[green]{icon} Advanced ReAct reasoning: {status}[/green]")
+                            if self.reasoning_enabled:
+                                self.console.print("[cyan]💡 Complex questions will now use multi-step reasoning and systematic database research[/cyan]")
+                        else:
+                            self.console.print("[red]❌ ReAct reasoning agent not available[/red]")
                     elif command[0] == 'quit':
                         break
                     else:
